@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TennisPOC">
+<link rel="manifest" href="manifest.json">
+<title>Tennis Stroke POC</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; }
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+#header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
+#header h1 { font-size: 15px; font-weight: 500; }
+#status-badge { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+#status-badge.active { background: rgba(29,158,117,0.3); color: #5DCAA5; }
+#setup-screen { padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; }
+.setup-label { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+.btn-group { display: flex; gap: 8px; }
+.sel-btn { flex: 1; padding: 12px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); font-size: 14px; cursor: pointer; transition: all 0.15s; }
+.sel-btn.selected { border-color: #1D9E75; background: rgba(29,158,117,0.2); color: #5DCAA5; font-weight: 500; }
+#setup-summary { background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.8; }
+#setup-summary span { color: #5DCAA5; font-weight: 500; }
+#pwa-hint { background: rgba(29,158,117,0.1); border: 0.5px solid rgba(29,158,117,0.3); border-radius: 10px; padding: 12px 16px; font-size: 12px; color: rgba(255,255,255,0.5); line-height: 1.8; }
+#pwa-hint strong { color: #5DCAA5; }
+#btn-launch { width: 100%; padding: 16px; border-radius: 10px; border: none; background: #1D9E75; color: #fff; font-size: 16px; font-weight: 500; cursor: pointer; }
+#camera-screen { display: none; flex-direction: column; flex: 1; }
+#camera-section { position: relative; background: #111; display: flex; align-items: center; justify-content: center; }
+#video { width: 100%; max-height: 52vh; object-fit: cover; display: block; }
+#canvas-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+#stroke-indicator { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 500; padding: 8px 20px; border-radius: 20px; background: rgba(0,0,0,0.8); color: #fff; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+#stroke-indicator.show { opacity: 1; }
+#stroke-indicator.forehand { color: #5DCAA5; border: 1px solid rgba(93,202,165,0.4); }
+#stroke-indicator.backhand { color: #85B7EB; border: 1px solid rgba(133,183,235,0.4); }
+#counters { position: absolute; bottom: 12px; left: 12px; display: flex; gap: 8px; }
+.counter-pill { font-size: 13px; padding: 5px 12px; border-radius: 12px; background: rgba(0,0,0,0.75); }
+.counter-pill span { font-weight: 600; }
+.fh { color: #5DCAA5; }
+.bh { color: #85B7EB; }
+#player-badge { position: absolute; top: 12px; right: 12px; font-size: 11px; padding: 3px 10px; border-radius: 10px; background: rgba(0,0,0,0.7); color: rgba(255,255,255,0.5); }
+#cam-badge { position: absolute; top: 36px; right: 12px; font-size: 10px; padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,0.7); color: rgba(93,202,165,0.8); }
+#debug-box { position: absolute; bottom: 52px; right: 8px; font-size: 10px; color: rgba(255,255,255,0.35); background: rgba(0,0,0,0.65); padding: 4px 8px; border-radius: 4px; line-height: 1.7; text-align: right; display: none; }
+#target-selector { padding: 10px 16px 6px; display: flex; gap: 8px; }
+.target-btn { flex: 1; padding: 9px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); font-size: 13px; cursor: pointer; }
+.target-btn.selected { border-color: #1D9E75; background: rgba(29,158,117,0.2); color: #5DCAA5; font-weight: 500; }
+#cam-controls { padding: 10px 16px 16px; display: flex; gap: 10px; }
+#btn-stop { flex: 1; padding: 14px; border-radius: 10px; border: none; background: rgba(162,45,45,0.85); color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; }
+#btn-see { padding: 14px 16px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.2); background: transparent; color: rgba(255,255,255,0.7); font-size: 14px; cursor: pointer; white-space: nowrap; }
+#loading-mp { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #111; z-index: 10; }
+#loading-mp p { font-size: 14px; color: rgba(255,255,255,0.5); text-align: center; padding: 0 24px; }
+.spinner { width: 32px; height: 32px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #1D9E75; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#results-panel { display: none; position: fixed; inset: 0; background: #0a0a0a; overflow-y: auto; z-index: 100; padding: 16px; -webkit-overflow-scrolling: touch; }
+#results-panel.show { display: block; }
+#results-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+#results-header h2 { font-size: 18px; font-weight: 500; flex: 1; }
+#btn-close { padding: 8px 16px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.2); background: transparent; color: rgba(255,255,255,0.7); font-size: 14px; cursor: pointer; }
+#stats-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+.stat-pill { flex: 1; text-align: center; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px 4px; }
+.stat-num { font-size: 24px; font-weight: 600; display: block; }
+.stat-lbl { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; display: block; }
+.s-fh { color: #5DCAA5; }
+.s-bh { color: #85B7EB; }
+.s-acc { color: #EF9F27; }
+#events-list { display: flex; flex-direction: column; gap: 16px; padding-bottom: 32px; }
+.event-card { background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; }
+.event-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ev-type { font-size: 15px; font-weight: 500; }
+.ev-type.forehand { color: #5DCAA5; }
+.ev-type.backhand { color: #85B7EB; }
+.ev-conf { font-size: 12px; color: rgba(255,255,255,0.35); }
+.frames-row { display: flex; gap: 6px; }
+.frame-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; align-items: center; }
+.frame-wrap img { width: 100%; border-radius: 6px; aspect-ratio: 3/4; object-fit: cover; background: #1a1a1a; }
+.frame-lbl { font-size: 10px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.05em; }
+.correct-row { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.correct-lbl { font-size: 12px; color: rgba(255,255,255,0.3); flex: 1; }
+.cor-btn { padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 0.5px solid rgba(255,255,255,0.15); background: transparent; color: rgba(255,255,255,0.5); }
+.cor-btn.yes { border-color: #1D9E75; background: rgba(29,158,117,0.2); color: #5DCAA5; }
+.cor-btn.no { border-color: #E24B4A; background: rgba(226,75,74,0.15); color: #F09595; }
+#save-all-btn { width: 100%; padding: 14px; border-radius: 10px; border: 0.5px solid rgba(93,202,165,0.4); background: rgba(29,158,117,0.15); color: #5DCAA5; font-size: 15px; font-weight: 500; cursor: pointer; margin-bottom: 16px; display: none; }
+#save-all-btn.show { display: block; }
+#empty-msg { text-align: center; padding: 48px 20px; color: rgba(255,255,255,0.3); font-size: 14px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>Tennis Stroke POC</h1>
+    <div id="status-badge">configurando</div>
+  </div>
+  <div id="setup-screen">
+    <div>
+      <div class="setup-label">Mao dominante do jogador</div>
+      <div class="btn-group">
+        <button class="sel-btn selected" data-hand="right" onclick="selectHand(this)">Destro</button>
+        <button class="sel-btn" data-hand="left" onclick="selectHand(this)">Canhoto</button>
+      </div>
+    </div>
+    <div>
+      <div class="setup-label">Golpe a capturar nesta sessao</div>
+      <div class="btn-group">
+        <button class="sel-btn selected" data-stroke="forehand" onclick="selectStroke(this)">Forehand</button>
+        <button class="sel-btn" data-stroke="backhand" onclick="selectStroke(this)">Backhand</button>
+        <button class="sel-btn" data-stroke="both" onclick="selectStroke(this)">Ambos</button>
+      </div>
+    </div>
+    <div id="setup-summary">
+      O sistema vai rastrear o <span id="sum-arm">pulso direito</span> como braco da raquete e capturar <span id="sum-stroke">forehands</span> automaticamente.
+    </div>
+    <div id="pwa-hint">
+      <strong>Primeira vez?</strong> Para usar a camera traseira, toca em Compartilhar no Safari e depois em "Adicionar a Tela de Inicio". Abre o app pelo icone verde na tela do iPhone.
+    </div>
+    <button id="btn-launch" onclick="launchCamera()">Iniciar camera</button>
+  </div>
+  <div id="camera-screen">
+    <div id="camera-section">
+      <div id="loading-mp">
+        <div class="spinner"></div>
+        <p id="loading-msg">Carregando detector de pose...<br><small style="opacity:.6">Pode levar 10-20 segundos na primeira vez</small></p>
+      </div>
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="canvas-overlay"></canvas>
+      <div id="stroke-indicator"></div>
+      <div id="counters">
+        <div class="counter-pill fh">FH <span id="fh-count">0</span></div>
+        <div class="counter-pill bh">BH <span id="bh-count">0</span></div>
+      </div>
+      <div id="player-badge"></div>
+      <div id="cam-badge"></div>
+      <div id="debug-box"></div>
+    </div>
+    <div id="target-selector"></div>
+    <div id="cam-controls">
+      <button id="btn-stop" onclick="stopCamera()">Parar sessao</button>
+      <button id="btn-see" onclick="openResults()">Ver capturas (0)</button>
+    </div>
+  </div>
+</div>
+<div id="results-panel">
+  <div id="results-header">
+    <h2>Capturas da sessao</h2>
+    <button id="btn-close" onclick="closeResults()">Fechar</button>
+  </div>
+  <div id="stats-bar">
+    <div class="stat-pill"><span class="stat-num s-fh" id="st-fh">0</span><span class="stat-lbl">forehands</span></div>
+    <div class="stat-pill"><span class="stat-num s-bh" id="st-bh">0</span><span class="stat-lbl">backhands</span></div>
+    <div class="stat-pill"><span class="stat-num s-acc" id="st-acc">-</span><span class="stat-lbl">precisao</span></div>
+  </div>
+  <button id="save-all-btn" onclick="saveAllFrames()">Salvar todas as fotos no rolo</button>
+  <div id="events-list"></div>
+  <div id="empty-msg" style="display:none">Nenhum golpe capturado ainda.<br>Inicie a camera e execute os golpes.</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
+<script>
+const LM = { LS:11, RS:12, LE:13, RE:14, LW:15, RW:16 };
+let hand = 'right', targetStroke = 'forehand';
+let capturedEvents = [], fhTotal = 0, bhTotal = 0;
+let poseInstance = null, mpCamera = null, isRunning = false;
+let wristHistory = [], lastStrokeTime = 0;
+const COOLDOWN = 1200, HISTORY = 22, CONF_THR = 0.45;
+
+function selectHand(btn) {
+  document.querySelectorAll('[data-hand]').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected'); hand = btn.dataset.hand; updateSummary();
+}
+function selectStroke(btn) {
+  document.querySelectorAll('[data-stroke]').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected'); targetStroke = btn.dataset.stroke; updateSummary();
+}
+function updateSummary() {
+  document.getElementById('sum-arm').textContent = hand === 'right' ? 'pulso direito' : 'pulso esquerdo';
+  const sl = { forehand:'forehands', backhand:'backhands', both:'forehands e backhands' };
+  document.getElementById('sum-stroke').textContent = sl[targetStroke];
+}
+
+async function launchCamera() {
+  document.getElementById('setup-screen').style.display = 'none';
+  const cs = document.getElementById('camera-screen');
+  cs.style.display = 'flex'; cs.style.flexDirection = 'column';
+  document.getElementById('player-badge').textContent = hand === 'right' ? 'Destro' : 'Canhoto';
+  const ts = document.getElementById('target-selector');
+  [['forehand','Forehand'],['backhand','Backhand'],['both','Ambos']].forEach(([s, label]) => {
+    const b = document.createElement('button');
+    b.className = 'target-btn' + (s === targetStroke ? ' selected' : '');
+    b.textContent = label;
+    b.onclick = () => {
+      document.querySelectorAll('.target-btn').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected'); targetStroke = s; wristHistory = [];
+    };
+    ts.appendChild(b);
+  });
+  await startCamera();
+}
+
+async function startCamera() {
+  const video = document.getElementById('video');
+  const loadDiv = document.getElementById('loading-mp');
+  const loadMsg = document.getElementById('loading-msg');
+  const camBadge = document.getElementById('cam-badge');
+  loadDiv.style.display = 'flex';
+  try {
+    if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    const settings = stream.getVideoTracks()[0].getSettings();
+    camBadge.textContent = settings.facingMode === 'environment' ? 'cam traseira' : 'cam frontal';
+  } catch(e) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      camBadge.textContent = 'cam frontal';
+    } catch(e2) {
+      loadMsg.innerHTML = 'Camera nao disponivel: ' + e2.message;
+      return;
+    }
+  }
+  if (!poseInstance) {
+    if (typeof Pose === 'undefined') {
+      loadMsg.innerHTML = 'Erro ao carregar MediaPipe. Verifique a conexao e recarregue.';
+      return;
+    }
+    poseInstance = new Pose({
+      locateFile: f => 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/' + f
+    });
+    poseInstance.setOptions({
+      modelComplexity: 1, smoothLandmarks: true, enableSegmentation: false,
+      minDetectionConfidence: 0.45, minTrackingConfidence: 0.45
+    });
+  }
+  let firstFrame = true;
+  poseInstance.onResults(results => {
+    if (firstFrame) {
+      firstFrame = false;
+      loadDiv.style.display = 'none';
+      document.getElementById('debug-box').style.display = 'block';
+      document.getElementById('status-badge').textContent = 'ao vivo';
+      document.getElementById('status-badge').className = 'active';
+    }
+    onPoseResults(results);
+  });
+  isRunning = true;
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  if (typeof Camera !== 'undefined') {
+    mpCamera = new Camera(video, {
+      onFrame: async () => { if (poseInstance && isRunning) await poseInstance.send({ image: video }); },
+      width: 1920, height: 1080
+    });
+    mpCamera.start();
+  } else {
+    const loop = async () => {
+      if (!isRunning) return;
+      if (poseInstance && video.readyState >= 2) await poseInstance.send({ image: video });
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }
+}
+
+function stopCamera() {
+  isRunning = false;
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  const video = document.getElementById('video');
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  document.getElementById('status-badge').textContent = 'parado';
+  document.getElementById('status-badge').className = '';
+  openResults();
+}
+
+function onPoseResults(results) {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas-overlay');
+  const ctx = canvas.getContext('2d');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!results.poseLandmarks) return;
+  if (typeof drawConnectors !== 'undefined') {
+    drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, { color: 'rgba(93,202,165,0.35)', lineWidth: 1.5 });
+    drawLandmarks(ctx, results.poseLandmarks, { color: 'rgba(93,202,165,0.65)', lineWidth: 1, radius: 3 });
+  }
+  const lm = results.poseLandmarks;
+  const racketWrist = hand === 'right' ? lm[LM.RW] : lm[LM.LW];
+  if (racketWrist && racketWrist.visibility > 0.3) {
+    const wx = racketWrist.x * canvas.width;
+    const wy = racketWrist.y * canvas.height;
+    ctx.beginPath(); ctx.arc(wx, wy, 14, 0, Math.PI*2);
+    ctx.strokeStyle = '#1D9E75'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(wx, wy, 6, 0, Math.PI*2);
+    ctx.fillStyle = '#1D9E75'; ctx.fill();
+  }
+  wristHistory.push({
+    racketWrist, racketElbow: hand==='right'?lm[LM.RE]:lm[LM.LE],
+    ls: lm[LM.LS], rs: lm[LM.RS]
+  });
+  if (wristHistory.length > HISTORY) wristHistory.shift();
+  const result = classify(wristHistory, hand);
+  document.getElementById('debug-box').innerHTML = 'tipo: '+result.type+'<br>conf: '+Math.round((result.conf||0)*100)+'%<br>relX: '+(result.relX||'-');
+  if (result.type !== 'other' && result.conf >= CONF_THR) triggerCapture(result.type, result.conf);
+}
+
+function classify(history, dominantHand) {
+  if (history.length < 8) return { type:'other', conf:0 };
+  const recent = history.slice(-14);
+  const visible = recent.filter(f => f.racketWrist && f.racketWrist.visibility > 0.3);
+  if (visible.length < 5) return { type:'other', conf:0 };
+  const wrists = visible.map(f => f.racketWrist);
+  let totalDelta = 0;
+  for (let i = 1; i < wrists.length; i++)
+    totalDelta += Math.abs(wrists[i].x - wrists[i-1].x) + Math.abs(wrists[i].y - wrists[i-1].y);
+  if (totalDelta < 0.25) return { type:'other', conf:0 };
+  const latest = history[history.length-1];
+  const ls = latest.ls, rs = latest.rs;
+  if (!ls || !rs || ls.visibility < 0.25 || rs.visibility < 0.25) return { type:'other', conf:0 };
+  const bodyCenter = (ls.x + rs.x) / 2;
+  const wrist = latest.racketWrist;
+  if (!wrist || wrist.visibility < 0.3) return { type:'other', conf:0 };
+  const relX = wrist.x - bodyCenter;
+  const thr = 0.03;
+  let type, conf;
+  if (dominantHand === 'right') {
+    if (relX > thr)       { type='forehand'; conf=Math.min(0.95, 0.50+relX*1.8); }
+    else if (relX < -thr) { type='backhand'; conf=Math.min(0.95, 0.50+Math.abs(relX)*1.8); }
+    else                  { type='other'; conf=0.2; }
+  } else {
+    if (relX < -thr)      { type='forehand'; conf=Math.min(0.95, 0.50+Math.abs(relX)*1.8); }
+    else if (relX > thr)  { type='backhand'; conf=Math.min(0.95, 0.50+relX*1.8); }
+    else                  { type='other'; conf=0.2; }
+  }
+  return { type, conf, relX: relX.toFixed(3) };
+}
+
+function captureFrame() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas-overlay');
+  const off = document.createElement('canvas');
+  off.width = canvas.width; off.height = canvas.height;
+  const octx = off.getContext('2d');
+  octx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return off.toDataURL('image/jpeg', 0.85);
+}
+
+function triggerCapture(strokeType, confidence) {
+  const now = Date.now();
+  if (now - lastStrokeTime < COOLDOWN) return;
+  if (targetStroke !== 'both' && targetStroke !== strokeType) return;
+  lastStrokeTime = now;
+  if (strokeType === 'forehand') { fhTotal++; document.getElementById('fh-count').textContent = fhTotal; }
+  else { bhTotal++; document.getElementById('bh-count').textContent = bhTotal; }
+  const frames = { prep: captureFrame() };
+  setTimeout(() => {
+    frames.contact = captureFrame();
+    setTimeout(() => {
+      frames.follow = captureFrame();
+      saveEvent(strokeType, confidence, frames);
+    }, 250);
+  }, 250);
+  const el = document.getElementById('stroke-indicator');
+  el.textContent = strokeType === 'forehand' ? 'Forehand capturado' : 'Backhand capturado';
+  el.className = 'show ' + strokeType;
+  setTimeout(() => el.className = '', 1400);
+}
+
+function saveEvent(type, conf, frames) {
+  capturedEvents.unshift({ id: Date.now(), type, conf: Math.round(conf*100), frames, correct: null });
+  document.getElementById('btn-see').textContent = 'Ver capturas (' + capturedEvents.length + ')';
+}
+
+function downloadImage(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function saveAllFrames() {
+  capturedEvents.forEach((ev, i) => {
+    setTimeout(() => {
+      ['prep','contact','follow'].forEach((key, j) => {
+        setTimeout(() => {
+          if (ev.frames[key]) downloadImage(ev.frames[key], ev.type+'_'+(capturedEvents.length-i)+'_'+key+'.jpg');
+        }, j * 300);
+      });
+    }, i * 1200);
+  });
+}
+
+function saveFrame(evId, frameKey, label) {
+  const ev = capturedEvents.find(e => e.id === evId);
+  if (ev && ev.frames[frameKey]) downloadImage(ev.frames[frameKey], 'golpe_'+ev.type+'_'+label+'.jpg');
+}
+
+function openResults() { renderResults(); document.getElementById('results-panel').classList.add('show'); }
+function closeResults() { document.getElementById('results-panel').classList.remove('show'); }
+
+function renderResults() {
+  const total = capturedEvents.length;
+  const reviewed = capturedEvents.filter(e => e.correct !== null).length;
+  const confirmed = capturedEvents.filter(e => e.correct === true).length;
+  document.getElementById('st-fh').textContent = capturedEvents.filter(e => e.type==='forehand').length;
+  document.getElementById('st-bh').textContent = capturedEvents.filter(e => e.type==='backhand').length;
+  document.getElementById('st-acc').textContent = reviewed > 0 ? Math.round(confirmed/reviewed*100)+'%' : '-';
+  document.getElementById('save-all-btn').className = total > 0 ? 'show' : '';
+  if (total === 0) {
+    document.getElementById('empty-msg').style.display = 'block';
+    document.getElementById('events-list').innerHTML = ''; return;
+  }
+  document.getElementById('empty-msg').style.display = 'none';
+  document.getElementById('events-list').innerHTML = capturedEvents.map((ev, i) => `
+    <div class="event-card">
+      <div class="event-header">
+        <span class="ev-type ${ev.type}">${ev.type==='forehand'?'Forehand':'Backhand'} #${total-i}</span>
+        <span class="ev-conf">${ev.conf}% conf</span>
+      </div>
+      <div class="frames-row">
+        <div class="frame-wrap"><img src="${ev.frames.prep||''}" onclick="saveFrame(${ev.id},'prep','prep')"><span class="frame-lbl">preparacao</span></div>
+        <div class="frame-wrap"><img src="${ev.frames.contact||''}" onclick="saveFrame(${ev.id},'contact','contato')"><span class="frame-lbl">contato</span></div>
+        <div class="frame-wrap"><img src="${ev.frames.follow||''}" onclick="saveFrame(${ev.id},'follow','final')"><span class="frame-lbl">finalizacao</span></div>
+      </div>
+      <div class="correct-row">
+        <span class="correct-lbl">Correto?</span>
+        <button class="cor-btn ${ev.correct===true?'yes':''}" onclick="mark(${ev.id},true)">Sim</button>
+        <button class="cor-btn ${ev.correct===false?'no':''}" onclick="mark(${ev.id},false)">Nao</button>
+      </div>
+    </div>`).join('');
+}
+
+function mark(id, val) {
+  const ev = capturedEvents.find(e => e.id===id);
+  if (ev) { ev.correct = val; renderResults(); }
+}
+</script>
+</body>
+</html>
